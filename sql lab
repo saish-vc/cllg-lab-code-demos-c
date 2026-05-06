@@ -1,0 +1,332 @@
+/* =========================
+   EXPERIMENT 1
+   DATABASE & TABLE DESIGN
+========================= */
+
+CREATE DATABASE CollegeManagement;
+USE CollegeManagement;
+
+-- TABLES
+CREATE TABLE Department (
+    DepartmentID INT PRIMARY KEY,
+    DepartmentName VARCHAR(50) UNIQUE,
+    Location VARCHAR(50)
+);
+
+CREATE TABLE Course (
+    CourseID INT PRIMARY KEY,
+    CourseName VARCHAR(50),
+    Credits INT CHECK (Credits BETWEEN 1 AND 6),
+    DepartmentID INT,
+    FOREIGN KEY (DepartmentID) REFERENCES Department(DepartmentID)
+);
+
+CREATE TABLE Student (
+    StudentID INT PRIMARY KEY,
+    StudentName VARCHAR(50),
+    Age INT CHECK (Age >= 17),
+    Location VARCHAR(50),
+    Email VARCHAR(50) UNIQUE
+);
+
+-- ALTER
+ALTER TABLE Student ADD Ename VARCHAR(50);
+ALTER TABLE Student ALTER COLUMN Email VARCHAR(100);
+ALTER TABLE Student DROP COLUMN Ename;
+
+-- INSERT / UPDATE / DELETE
+INSERT INTO Student VALUES (1, 'Suresh', 20, 'Chennai', 'suresh@gmail.com');
+
+UPDATE Student 
+SET Location = 'Bangalore'
+WHERE Email = 'suresh@gmail.com';
+
+DELETE FROM Student WHERE StudentID = 1;
+
+
+/* =========================
+   EXPERIMENT 2
+   QUERIES
+========================= */
+
+SELECT * FROM Student WHERE Location = 'Chennai';
+SELECT * FROM Course ORDER BY CourseName ASC;
+SELECT DISTINCT Location FROM Department;
+SELECT * FROM Student WHERE Age BETWEEN 18 AND 22;
+SELECT * FROM Student WHERE StudentName LIKE 'S%';
+SELECT * FROM Course WHERE CourseName IN ('Database Systems', 'Data Structures');
+
+-- OPERATIONS
+SELECT CourseName, Credits + 1 AS UpdatedCredits FROM Course;
+SELECT Amount, Amount * 1.18 AS TotalWithGST FROM Payment;
+SELECT * FROM Student WHERE Age > 20;
+SELECT * FROM Student WHERE Age BETWEEN 18 AND 22 AND Location = 'Bangalore';
+SELECT * FROM Course WHERE Credits < 3 OR Credits > 5;
+SELECT * FROM Student WHERE Location NOT IN ('Chennai');
+
+-- AGGREGATE
+SELECT SUM(Credits), AVG(Credits), MAX(Credits), MIN(Credits) FROM Course;
+SELECT SUM(Amount) FROM Payment;
+SELECT COUNT(*) FROM Student;
+
+-- FUNCTIONS
+SELECT 
+    UPPER(StudentName),
+    SUBSTRING(Email, CHARINDEX('@', Email) + 1, LEN(Email)),
+    DATEDIFF(MONTH, DOB, GETDATE()),
+    YEAR(EnrollmentDate)
+FROM Student;
+
+-- GROUP BY
+SELECT StudentID, COUNT(CourseID)
+FROM Enrollment
+GROUP BY StudentID
+HAVING COUNT(CourseID) > 1;
+
+
+/* =========================
+   EXPERIMENT 3
+   JOINS & SUBQUERIES
+========================= */
+
+SELECT s.StudentName, c.CourseName
+FROM Student s
+INNER JOIN Enrollment e ON s.StudentID = e.StudentID
+INNER JOIN Course c ON e.CourseID = c.CourseID;
+
+SELECT s.StudentName, p.Amount
+FROM Student s
+LEFT JOIN Payment p ON s.StudentID = p.StudentID;
+
+SELECT d.DepartmentName, c.CourseName
+FROM Department d
+RIGHT JOIN Course c ON d.DepartmentID = c.DepartmentID;
+
+SELECT s.StudentName, p.Amount
+FROM Student s
+FULL JOIN Payment p ON s.StudentID = p.StudentID;
+
+SELECT d.DepartmentName, c.CourseName
+FROM Department d
+CROSS JOIN Course c;
+
+-- SUBQUERY
+SELECT DepartmentName 
+FROM Department 
+WHERE DepartmentID IN (
+    SELECT DepartmentID FROM Course WHERE Credits > 3
+);
+
+SELECT StudentID 
+FROM Enrollment 
+GROUP BY StudentID 
+HAVING COUNT(CourseID) > 1;
+
+SELECT * FROM Course 
+WHERE Credits > ALL (
+    SELECT Credits 
+    FROM Course 
+    WHERE DepartmentID = (
+        SELECT DepartmentID 
+        FROM Department 
+        WHERE DepartmentName = 'Mathematics'
+    )
+);
+
+
+/* =========================
+   EXPERIMENT 4
+   VIEWS, INDEXES, TRIGGERS
+========================= */
+
+CREATE VIEW StudentCourseView AS
+SELECT s.StudentName, c.CourseName
+FROM Student s
+JOIN Enrollment e ON s.StudentID = e.StudentID
+JOIN Course c ON e.CourseID = c.CourseID;
+
+ALTER VIEW StudentCourseView AS
+SELECT s.StudentName, c.CourseName, d.DepartmentName
+FROM Student s
+JOIN Enrollment e ON s.StudentID = e.StudentID
+JOIN Course c ON e.CourseID = c.CourseID
+JOIN Department d ON c.DepartmentID = d.DepartmentID;
+
+DROP VIEW StudentCourseView;
+
+EXEC sp_rename 'StudentCourseView', 'StudentEnrollmentInfo';
+
+-- INDEXES
+CREATE INDEX idx_course_name ON Course(CourseName);
+CREATE INDEX idx_dept_course ON Course(DepartmentID, CourseName);
+
+-- TRIGGERS
+CREATE TRIGGER trg_InsertPaymentDate
+ON Payment
+AFTER INSERT
+AS
+UPDATE Payment
+SET PaymentDate = GETDATE()
+WHERE PaymentDate IS NULL;
+
+CREATE TRIGGER trg_NoDeletePayment
+ON Payment
+INSTEAD OF DELETE
+AS
+PRINT 'Deletion not allowed on Payment table';
+
+
+/* =========================
+   EXPERIMENT 5
+   PROCEDURES & FUNCTIONS
+========================= */
+
+DECLARE @Name VARCHAR(50) = 'Ravi';
+DECLARE @Age INT = 19;
+
+IF @Age >= 18
+    PRINT @Name + ' is eligible';
+ELSE
+    PRINT @Name + ' is not eligible';
+
+-- PROCEDURE
+CREATE PROCEDURE InsertStudent
+@ID INT, @Name VARCHAR(50), @Age INT
+AS
+BEGIN
+    INSERT INTO Student(StudentID, StudentName, Age)
+    VALUES(@ID, @Name, @Age);
+    PRINT 'Student inserted successfully';
+END;
+
+-- OUTPUT PARAMETER
+CREATE PROCEDURE GetTotalCoursesByStudent
+    @StudentID INT,
+    @TotalCourses INT OUTPUT
+AS
+BEGIN
+    SELECT @TotalCourses = COUNT(CourseID)
+    FROM Enrollment
+    WHERE StudentID = @StudentID;
+END;
+
+DECLARE @CourseCount INT;
+
+EXEC GetTotalCoursesByStudent
+    @StudentID = 1,
+    @TotalCourses = @CourseCount OUTPUT;
+
+PRINT 'Total courses enrolled: ' + CAST(@CourseCount AS VARCHAR);
+
+-- FUNCTION
+CREATE FUNCTION TotalPayment(@StudentID INT)
+RETURNS INT
+AS
+BEGIN
+    RETURN (
+        SELECT SUM(Amount)
+        FROM Payment
+        WHERE StudentID = @StudentID
+    );
+END;
+
+
+/* =========================
+   EXPERIMENT 6
+   TRANSACTIONS
+========================= */
+
+BEGIN TRANSACTION;
+INSERT INTO Student VALUES (2, 'Anu', 20, 'Chennai', 'anu@gmail.com');
+COMMIT;
+
+BEGIN TRAN;
+INSERT INTO Payment VALUES (1, 500, GETDATE());
+SAVE TRAN sp1;
+ROLLBACK TRAN sp1;
+COMMIT;
+
+DECLARE @StudentAge INT;
+
+SELECT @StudentAge = Age
+FROM Student
+WHERE StudentID = 1;
+
+IF @StudentAge >= 18
+    PRINT 'Student is eligible to enroll';
+ELSE
+    PRINT 'Student is NOT eligible to enroll';
+
+-- WHILE LOOP
+DECLARE @PaymentID INT;
+DECLARE @MaxPaymentID INT;
+
+SELECT 
+    @PaymentID = MIN(PaymentID),
+    @MaxPaymentID = MAX(PaymentID)
+FROM Payment;
+
+WHILE @PaymentID <= @MaxPaymentID
+BEGIN
+    PRINT 'Processing payment with PaymentID: ' + CAST(@PaymentID AS VARCHAR);
+    SET @PaymentID = @PaymentID + 1;
+END;
+
+-- TRY CATCH
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF NOT EXISTS (
+            SELECT * FROM Course WHERE CourseID = @CourseID
+        )
+        BEGIN
+            RAISERROR ('Invalid CourseID. Enrollment failed.', 16, 1);
+        END
+
+        INSERT INTO Enrollment(StudentID, CourseID)
+        VALUES (@StudentID, @CourseID);
+
+        COMMIT TRANSACTION;
+        PRINT 'Student enrolled successfully';
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        PRINT 'Error occurred. Enrollment rolled back.';
+    END CATCH
+END;
+
+
+/* =========================
+   EXPERIMENT 7
+   FINAL TABLES
+========================= */
+
+CREATE TABLE Student_Final (
+    StudentID INT PRIMARY KEY,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50),
+    Gender CHAR(1) CHECK (Gender IN ('M','F')),
+    DOB DATE,
+    Email VARCHAR(100) UNIQUE,
+    Phone VARCHAR(15),
+    Address VARCHAR(200)
+);
+
+CREATE TABLE Course_Final (
+    CourseID INT PRIMARY KEY,
+    CourseName VARCHAR(100) NOT NULL,
+    Credits INT CHECK (Credits > 0),
+    Department VARCHAR(50)
+);
+
+CREATE TABLE Enrollment_Final (
+    EnrollmentID INT PRIMARY KEY,
+    StudentID INT,
+    CourseID INT,
+    EnrollmentDate DATE,
+    Grade CHAR(2),
+    FOREIGN KEY (StudentID) REFERENCES Student_Final(StudentID) ON DELETE CASCADE,
+    FOREIGN KEY (CourseID) REFERENCES Course_Final(CourseID) ON DELETE CASCADE
+);
