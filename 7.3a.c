@@ -1,7 +1,6 @@
 /* 
    Program to create report.txt,
    write student details and display contents
-   vaibhav
 */
 
 #include <stdio.h>
