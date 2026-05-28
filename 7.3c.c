@@ -1,7 +1,7 @@
 /*
    Program to search a word in a text file
    and count its occurrences
-   vaibhav
+   
 */
 
 #include <stdio.h>
