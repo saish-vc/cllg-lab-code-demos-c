@@ -1,6 +1,6 @@
 /*
    Program to copy contents of one file to another
-   vaibhav
+   
 */
 
 #include <stdio.h>
